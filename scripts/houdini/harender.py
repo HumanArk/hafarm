@@ -51,6 +51,10 @@ class IfdDriver(BaseDriver):
     _vmpicture = 'vm_picture'
 
 
+class UsdDriver(BaseDriver):
+    _vmpicture = 'outputimage'
+    _ext = ".$F.usd"
+
 
 class BtDriver(BaseDriver):
     _vmpicture = 'vm_uvoutputpicture1'
@@ -81,6 +85,7 @@ class FixDriver(object):
                         , 'comp': CompDriver
                         , 'geometry': GeoDriver
                         , 'alembic': AlembicDriver
+                        , 'usdrender': UsdDriver
                     }
         drv = hou_drivers.get(driver.type().name())
         if not drv:
@@ -103,6 +108,30 @@ def set_generate_ifd(driver, options):
         ifd_name = os.path.join(options.ifd_path, options.ifd_name + fd._ext)
         fd.diskfile.set(ifd_name)
 
+    return driver
+
+
+def set_generate_usd(driver, options):
+    """NOTE: We create new type of node to render on disk USK files first.
+    """
+    assert(driver.type().name() == "usdrender")
+    scene_path, scene_name = os.path.split(hou.hipFile.name())
+    scene_name, ext = os.path.splitext(scene_name)
+
+    new_driver = driver.parent().createNode("usd")
+    loppath = driver.parm("loppath").eval()
+    new_driver.parm("loppath").set(loppath)
+    new_driver.parm("fileperframe").set(1)
+    new_driver.parm("enableoutputprocessor_simplerelativepaths").set(0)
+
+    if options.ifd_name:
+        usd_name = os.path.join(options.ifd_path, options.ifd_name  + ".$F" + ".usd")
+    else:
+        usd_name = os.path.join(options.ifd_path, scene_name + ".$F" + ".usd")
+        
+    new_driver.parm("lopoutput").set(usd_name)
+
+    return new_driver
 
 
 def fix_driver_vmpicture(driver):
@@ -130,6 +159,7 @@ def parseOptions():
     parser.add_option("-l", "--frame_list", dest="frame_list",  action="store",  help="Alternative ")
     parser.add_option("", "--ignore_tiles", dest='ignore_tiles', action='store_true', default=False, help="Disables tiling on Mantra Rop (This allow custom ifd filtering setup).")
     parser.add_option("", "--generate_ifds", dest='generate_ifds', action='store_true', default=False, help="Changes Rop setting to save IFD files on disk. ")
+    parser.add_option("", "--generate_usds", dest='generate_usds', action='store_true', default=False, help="Changes Rop setting to save USD files on disk. ")
     parser.add_option("", "--ifd_path", dest='ifd_path', action='store', default='$JOB/render/sungrid/ifd', help="Overwrites default IFD path.")
     parser.add_option("", "--vectorize_export", dest='vectorize_export', action='store',  type="string", default="msk_*", help="Makes sure all deep rasters matching given pattern will be vector type.")
     parser.add_option("", "--save_scene", dest='save_scene', action='store',  type="string", default="", help="Saves modified version of a scene mostly for debugging purposes.")
@@ -287,9 +317,12 @@ def main():
         driver.parm("vm_writecheckpoint").set(0)
 
     if options.generate_ifds:
-        set_generate_ifd(driver, options)
+        driver = set_generate_ifd(driver, options)
 
     fix_driver_vmpicture(driver)
+
+    if options.generate_usds:
+        driver = set_generate_usd(driver, options)
 
     # vectorize exports:
     if options.vectorize_export and not HAFARM_DISABLE_VECTORIZE_EXPORT:
@@ -316,6 +349,6 @@ def main():
             driver.render(frame_range=(frame, frame), ignore_inputs=True, verbose=True)
 
 
-        
+    hou.hipFile.save()
 
 if __name__ == '__main__': main()

@@ -796,6 +796,175 @@ class HoudiniCompositeWrapper(object):
             yield obj
 
 
+class UsdRender(HbatchWrapper):
+    """docstring for HaMantraWrapper"""
+    def __init__(self, index, path, depends, **kwargs):
+        super(UsdRender, self).__init__(index, path, depends, **kwargs)
+
+        self.name += '_usd'
+        _hash = self.get_jobname_hash()
+
+        self.parms['job_name'] << { 'jobname_hash': _hash, 'render_driver_type': 'usd' }
+        usd_name = self.parms['job_name'].clone()
+        usd_name << { 'render_driver_type': '' }
+        self.parms['command_arg'] += ["--generate_usds", "--ifd_name %s" %  usd_name ]
+        self.parms['output_picture'] = str(usd_name) + ".$F.usd"
+
+
+    def get_step_frame(self):
+        return  int(self.hou_node.parm('f2').eval()) if \
+        self._kwargs.get('use_one_slot') else self._kwargs.get('step_frame')
+
+
+    def get_output_picture(self):
+        return "" #self.hou_node.parm('vm_picture').eval()
+
+
+class KarmaRender(HoudiniNodeWrapper):
+    def __init__(self, index, path, depends, **kwargs):
+        super(KarmaRender, self).__init__(index, path, depends, **kwargs)
+
+        self.name += '_karma'
+        self.parms['exe'] = '$HFS/bin/husk'
+        self.parms['req_license'] = 'mantra_lic=1'
+        self.parms['req_memory'] = kwargs.get('mantra_ram')
+        self.parms['command_arg'] += ["-V4", "-s", "/Render/rendersettings" ]
+
+        self.parms['start_frame'] = int(self.hou_node.parm('f1').eval())
+        self.parms['end_frame'] = int(self.hou_node.parm('f2').eval())
+
+        self.parms['scene_file'] << { 'scene_file_path': kwargs['ifd_path']
+                                        , 'scene_file_basename': self.parms['job_name'].data()['job_basename']
+                                        , 'scene_file_ext': '.usd' }
+        self.parms['job_name'] << { 'render_driver_type': kwargs.get('render_driver_type', 'karma')
+                                    ,'jobname_hash': kwargs['job_hash'] }
+        self.parms['scene_file'] << { 'scene_file_hash': kwargs['job_hash'] + '_' + self.parms['job_name'].data()['render_driver_name'] }
+
+        self.parms['output_picture'] = self.get_output_picture()
+
+        if 'job_hash' in kwargs:
+            self.parms['job_name'] << { 'jobname_hash': kwargs['job_hash'] }
+            self.parms['scene_file'] << { 'scene_file_hash': kwargs['job_hash'] + '_' + self.parms['job_name'].data()['render_driver_name'] }
+
+
+    def get_output_picture(self):
+        """Quick look into USD land
+        """
+        loppath  = self.hou_node.parm("loppath").eval()
+        lop_node = self.hou_node.node(loppath)
+        stage = lop_node.stage()
+        products = stage.GetPrimAtPath("/Render/Products/renderproduct")
+        image = products.GetAttribute("productName").Get(1)
+        return image
+
+
+
+
+    def copy_scene_file(self, **kwargs):
+        ''' It is not clear enough in this place :(
+            but mantra should skip copy scene file 
+            because of input file is *.@TASK_ID/>.ifd
+            and copyfile function mess up it
+        '''
+        pass
+
+
+class UsdWrapper(object):
+    def __init__(self, index, path, depends, **kwargs):
+        self._items = []
+        self._kwargs = kwargs
+        self._path = path
+
+        usd = UsdRender( index, path, depends, **self._kwargs )
+        self.append_instances( usd )
+        group_hash = usd.parms['job_name'].data()['jobname_hash']
+        karma = KarmaRender( str(uuid4()), path, [usd.index], job_hash=group_hash, **self._kwargs )
+        self.append_instances( karma )
+
+        # if kwargs['frames'] != [1]:
+        #     frames = kwargs.get('frames')
+        #     for frame in frames:
+        #         mtr = HoudiniMantraWrapper(str(uuid4()), self._path, [usd.index], frame=frame, **self._kwargs)
+        #         self.append_instances( mtr )
+
+        #     for k, m in houdini_dependencies.iteritems():
+        #         if usd.index in m:
+        #             m.remove(usd.index)
+        #             m += [ x.index for x in self.graph_items( class_type_filter=HoudiniMantraWrapper ) ]
+        
+        # elif kwargs.get( 'denoise', 0 ) > 0 :
+        #     self._kwargs['job_hash'] = group_hash
+        #     mtr = HoudiniMantra( str(uuid4()), path, [usd.index], **self._kwargs )
+        #     self.append_instances( mtr )
+        #     last_node = mtr
+        #     for k, m in houdini_dependencies.iteritems():
+        #         if usd.index in m:
+        #             m.remove(usd.index)
+        #             m += [last_node.index]
+        # else:
+        #     mtr1 = HoudiniMantra( str(uuid4()), path, [usd.index], job_hash=group_hash, **self._kwargs )
+        #     self.append_instances( mtr1 )
+        #     last_node = mtr1
+
+            # if mtr1.is_tiled() == True:
+            #     join_tiles_action = BatchJoinTiles( mtr1.parms['output_picture']
+            #                                 , mtr1._tiles_x, mtr1._tiles_y
+            #                                 , mtr1.parms['priority'] + 1
+            #                                 , make_proxy = mtr1._make_proxy 
+            #                                 , start = mtr1.parms['start_frame']
+            #                                 , end = mtr1.parms['end_frame']
+            #                                 , job_data = usd.parms['job_name'].data()
+            #                                 , job_hash = group_hash )
+            #     mtr1.parms['output_picture'] = join_tiles_action.tiled_picture()
+
+            #     join_tiles_action.add( mtr1 )
+            #     self.append_instances( join_tiles_action )
+            #     last_node = join_tiles_action
+
+            # if kwargs.get('make_movie', False) == True:
+            #     make_movie_action = BatchMp4( mtr1.parms['output_picture']
+            #                               , job_data = usd.parms['job_name'].data()
+            #                               , job_hash = group_hash)
+            #     make_movie_action.add( mtr1 )
+            #     self.append_instances( make_movie_action )
+
+            # if kwargs.get('debug_images', False) == True:
+            #     debug_render = BatchDebug( mtr1.parms['output_picture']
+            #                                 , job_data = mtr1.parms['job_name'].data()
+            #                                 , start = mtr1.parms['start_frame']
+            #                                 , end = mtr1.parms['end_frame']
+            #                                 , job_hash = group_hash )
+            #     debug_render.add( mtr1 )
+            #     merger = BatchReportsMerger( mtr1.parms['output_picture']
+            #                             , job_data = mtr1.parms['job_name'].data()
+            #                             , job_hash = group_hash
+            #                             , **kwargs )
+            #     merger.add( debug_render )
+            #     self.append_instances( debug_render, merger )
+
+            # for k, m in houdini_dependencies.iteritems():# TODO get rid of this
+            #     if usd.index in m:
+            #         m.remove(usd.index)
+            #         m += [last_node.index]
+
+
+    def append_instances(self, *args):
+        self._items += args
+
+
+    def graph_items(self, class_type_filter = None):
+        if class_type_filter == None:
+            return self._items
+        return filter(lambda x: isinstance(x, class_type_filter), self._items)
+
+
+    def __iter__(self):
+        for obj in self.graph_items():
+            yield obj
+
+
+
+
 
 class HoudiniWrapper(type):
     """docstring for HaHoudiniWrapper"""
@@ -810,6 +979,7 @@ class HoudiniWrapper(type):
                         , 'Redshift_IPR': SkipWrapper
                         , 'denoise' : DenoiseBatchRender
                         , 'merge': MergeWrapper
+                        , 'usdrender' : UsdWrapper
                     }
 
         kwargs = join_hafarms(*hafarms)
