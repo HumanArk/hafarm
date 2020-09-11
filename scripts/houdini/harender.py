@@ -112,7 +112,7 @@ def set_generate_ifd(driver, options):
 
 
 def set_generate_usd(driver, options):
-    """NOTE: We create new type of node to render on disk USK files first.
+    """NOTE: We create new type of node to render on disk USD files first.
     """
     assert(driver.type().name() == "usdrender")
     scene_path, scene_name = os.path.split(hou.hipFile.name())
@@ -132,6 +132,24 @@ def set_generate_usd(driver, options):
     new_driver.parm("lopoutput").set(usd_name)
 
     return new_driver
+
+
+def set_generate_nsi(driver, options):
+    """ Change ROP setting to save to disk NSI files. 
+    """
+    assert(driver.type().name() == "3Delight")
+    scene_path, scene_name = os.path.split(hou.hipFile.name())
+    scene_name, ext = os.path.splitext(scene_name)
+
+    if options.ifd_name:
+        nsi_name = os.path.join(options.ifd_path, options.ifd_name  + ".$F" + ".nsi")
+    else:
+        nsi_name = os.path.join(options.ifd_path, scene_name + ".$F" + ".nsi")
+        
+    driver.parm("render_mode").set("export_file")
+    driver.parm("default_export_nsi_filename").set(nsi_name)
+
+    return driver
 
 
 def fix_driver_vmpicture(driver):
@@ -160,6 +178,7 @@ def parseOptions():
     parser.add_option("", "--ignore_tiles", dest='ignore_tiles', action='store_true', default=False, help="Disables tiling on Mantra Rop (This allow custom ifd filtering setup).")
     parser.add_option("", "--generate_ifds", dest='generate_ifds', action='store_true', default=False, help="Changes Rop setting to save IFD files on disk. ")
     parser.add_option("", "--generate_usds", dest='generate_usds', action='store_true', default=False, help="Changes Rop setting to save USD files on disk. ")
+    parser.add_option("", "--generate_nsis", dest='generate_nsis', action='store_true', default=False, help="Changes Rop setting to save NSI files on disk. ")
     parser.add_option("", "--ifd_path", dest='ifd_path', action='store', default='$JOB/render/sungrid/ifd', help="Overwrites default IFD path.")
     parser.add_option("", "--vectorize_export", dest='vectorize_export', action='store',  type="string", default="msk_*", help="Makes sure all deep rasters matching given pattern will be vector type.")
     parser.add_option("", "--save_scene", dest='save_scene', action='store',  type="string", default="", help="Saves modified version of a scene mostly for debugging purposes.")
@@ -323,6 +342,9 @@ def main():
 
     if options.generate_usds:
         driver = set_generate_usd(driver, options)
+
+    if options.generate_nsis:
+        driver = set_generate_nsi(driver, options)
 
     # vectorize exports:
     if options.vectorize_export and not HAFARM_DISABLE_VECTORIZE_EXPORT:

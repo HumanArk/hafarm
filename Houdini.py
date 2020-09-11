@@ -980,6 +980,99 @@ class UsdWrapper(object):
 
 
 
+class DelightNSI(HbatchWrapper):
+    """docstring for HaMantraWrapper"""
+    def __init__(self, index, path, depends, **kwargs):
+        super(DelightNSI, self).__init__(index, path, depends, **kwargs)
+
+        self.name += '_nsi'
+        _hash = self.get_jobname_hash()
+
+        self.parms['job_name'] << { 'jobname_hash': _hash, 'render_driver_type': 'nsi' }
+        usd_name = self.parms['job_name'].clone()
+        usd_name << { 'render_driver_type': '' }
+        self.parms['command_arg'] += ["--generate_nsis", "--ifd_name %s" %  usd_name ]
+        self.parms['output_picture'] = str(usd_name) + ".$F.nsi"
+
+
+    def get_step_frame(self):
+        return  int(self.hou_node.parm('f2').eval()) if \
+            self._kwargs.get('use_one_slot') else self._kwargs.get('step_frame')
+
+
+    def get_output_picture(self):
+        return self.hou_node.parm('default_image_filename').eval()
+
+
+class DelightRender(HoudiniNodeWrapper):
+    def __init__(self, index, path, depends, **kwargs):
+        super(DelightRender, self).__init__(index, path, depends, **kwargs)
+
+        self.name += '_3delight'
+        self.parms['exe'] = '$DELIGHT/bin/renderdl'
+        # self.parms['req_license'] = 'karma_lic=1' #TODO: add lic
+        self.parms['req_memory'] = kwargs.get('mantra_ram')
+        self.parms['command_arg'] += ["-stats", "-progress"]
+
+        self.parms['start_frame'] = int(self.hou_node.parm('f1').eval())
+        self.parms['end_frame'] = int(self.hou_node.parm('f2').eval())
+
+        self.parms['scene_file'] << { 'scene_file_path': kwargs['ifd_path']
+                                        , 'scene_file_basename': self.parms['job_name'].data()['job_basename']
+                                        , 'scene_file_ext': '.nsi' }
+        self.parms['job_name'] << { 'render_driver_type': kwargs.get('render_driver_type', '3delight')
+                                    ,'jobname_hash': kwargs['job_hash'] }
+        self.parms['scene_file'] << { 'scene_file_hash': kwargs['job_hash'] + '_' + self.parms['job_name'].data()['render_driver_name'] }
+
+        self.parms['output_picture'] = self.get_output_picture()
+
+        if 'job_hash' in kwargs:
+            self.parms['job_name'] << { 'jobname_hash': kwargs['job_hash'] }
+            self.parms['scene_file'] << { 'scene_file_hash': kwargs['job_hash'] + '_' + self.parms['job_name'].data()['render_driver_name'] }
+
+
+    def get_output_picture(self):
+        """Quick look into USD land
+        """
+        return self.hou_node.parm('default_image_filename').eval()
+
+    def copy_scene_file(self, **kwargs):
+        ''' It is not clear enough in this place :(
+            but mantra should skip copy scene file 
+            because of input file is *.@TASK_ID/>.ifd
+            and copyfile function mess up it
+        '''
+        pass
+
+
+class DelightWrapper(object):
+    def __init__(self, index, path, depends, **kwargs):
+        self._items = []
+        self._kwargs = kwargs
+        self._path = path
+
+        nsi = DelightNSI( index, path, depends, **self._kwargs )
+        self.append_instances( nsi )
+        group_hash = nsi.parms['job_name'].data()['jobname_hash']
+        render = DelightRender( str(uuid4()), path, [nsi.index], job_hash=group_hash, **self._kwargs )
+        self.append_instances( render )
+
+        # Add other stuff here.
+
+
+    def append_instances(self, *args):
+        self._items += args
+
+
+    def graph_items(self, class_type_filter = None):
+        if class_type_filter == None:
+            return self._items
+        return filter(lambda x: isinstance(x, class_type_filter), self._items)
+
+
+    def __iter__(self):
+        for obj in self.graph_items():
+            yield obj
 
 
 class HoudiniWrapper(type):
@@ -996,6 +1089,7 @@ class HoudiniWrapper(type):
                         , 'denoise' : DenoiseBatchRender
                         , 'merge': MergeWrapper
                         , 'usdrender' : UsdWrapper
+                        , '3Delight'  : DelightWrapper
                     }
 
         kwargs = join_hafarms(*hafarms)
