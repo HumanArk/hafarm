@@ -826,7 +826,7 @@ class KarmaRender(HoudiniNodeWrapper):
 
         self.name += '_karma'
         self.parms['exe'] = '$HFS/bin/husk'
-        self.parms['req_license'] = 'mantra_lic=1'
+        self.parms['req_license'] = 'karma_lic=1'
         self.parms['req_memory'] = kwargs.get('mantra_ram')
         self.parms['command_arg'] += ["-V4", "-s", "/Render/rendersettings" ]
 
