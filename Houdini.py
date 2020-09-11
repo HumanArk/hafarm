@@ -56,6 +56,31 @@ def get_ifd_files(ifds):
     return real_ifds, os.path.split(seq_details[0])[1], seq_details[0] + const.TASK_ID + '.ifd'
 
 
+class NodeGroupConstrain(object):
+
+    APP_VERSION = 'APP_VERSION'
+    USER = 'USER'
+    RENDERER = 'RENDERER'
+
+    def __init__(self):
+        pass
+        
+    def __call__(self, group, const_group, const_type=(APP_VERSION, 17.5)):
+        from os import getlogin
+        _type, _predicate = const_type
+        _constrained = False
+        if _type == self.APP_VERSION:
+            major, minor, patch = hou.applicationVersion()
+            numeric_version = major + minor/10.0 + patch/1000.0
+            _constrained = numeric_version >= _predicate
+        if _type == self.USER: 
+            _constrained = getlogin() == _predicate
+
+        if _constrained:
+            return const_group
+        return group
+
+
 def join_hafarms(*hafarm_nodes):
         ret = {}
 
@@ -98,7 +123,7 @@ def join_hafarms(*hafarm_nodes):
 
             hafarm_parms = dict(
                       queue = str(hafarm_node.parm('queue').eval())
-                    , group = str(hafarm_node.parm('group').eval())
+                    , group = NodeGroupConstrain()(hafarm_node.parm('group').eval(), "new_intel")
                     , ifd_path_is_default = hafarm_node.parm("ifd_path").isAtDefault()
                     , use_one_slot = hafarm_node.parm('use_one_slot').eval()
                     , command_arg = hafarm_node.parm('command_arg').eval()
@@ -501,11 +526,6 @@ class HoudiniMantra(HoudiniMantraExistingIfdWrapper):
             self.parms['scene_file'] << { 'scene_fullpath': kwargs.get('scene_file') }
             self.parms['output_picture'] = kwargs.get('output_picture')
 
-        HOUDINI_MAJOR_VERSION = int(os.environ.get('REZ_HOUDINI_MAJOR_VERSION','0'))
-        HOUDINI_MINOR_VERSION = int(os.environ.get('REZ_HOUDINI_MINOR_VERSION','0'))
-        if (HOUDINI_MAJOR_VERSION >= 17) and (HOUDINI_MINOR_VERSION >= 5):
-            self.parms['group'] = 'new_intel' # grafika&render&
-
         self.parms['scene_file'] << { 'scene_file_path': kwargs['ifd_path']
                                         , 'scene_file_basename': self.parms['job_name'].data()['job_basename']
                                         , 'scene_file_ext': '.ifd' }
@@ -517,7 +537,6 @@ class HoudiniMantra(HoudiniMantraExistingIfdWrapper):
             self.parms['job_name'] << { 'tiles': True }
         if kwargs.get('frame') != None:
             self.parms['job_name'] += { 'render_driver_type': kwargs.get('render_driver_type', 'mantra_frame%s' % kwargs.get('frame')) }
-
 
     def is_tiled(self):
         return self._vm_tile_render
@@ -856,9 +875,6 @@ class KarmaRender(HoudiniNodeWrapper):
         products = stage.GetPrimAtPath("/Render/Products/renderproduct")
         image = products.GetAttribute("productName").Get(1)
         return image
-
-
-
 
     def copy_scene_file(self, **kwargs):
         ''' It is not clear enough in this place :(
