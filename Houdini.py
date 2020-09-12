@@ -1010,7 +1010,7 @@ class DelightRender(HoudiniNodeWrapper):
 
         self.name += '_3delight'
         self.parms['exe'] = '$DELIGHT/bin/renderdl'
-        # self.parms['req_license'] = 'karma_lic=1' #TODO: add lic
+        self.parms['req_license'] = 'delight_lic=1'
         self.parms['req_memory'] = kwargs.get('mantra_ram')
         self.parms['command_arg'] += ["-stats", "-progress"]
 
