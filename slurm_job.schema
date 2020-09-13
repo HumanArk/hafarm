@@ -1,5 +1,9 @@
 #!/bin/bash
+{%- if max_running_tasks != 0 %}
+#SBATCH --array={{ start_frame }}-{{ end_frame }}:{{ step_frame }}%{{ max_running_tasks }}
+{%- else %}
 #SBATCH --array={{ start_frame }}-{{ end_frame }}:{{ step_frame }}
+{%- endif %}
 #SBATCH --nice={{ priority }}
 #SBATCH -N 1
 #SBATCH{% if slots != 0 %} -n {{ slots }}{% else %} --exclusive{% endif %}
