@@ -1052,7 +1052,8 @@ class DelightCloud(HoudiniNodeWrapper):
         from hafarm.const import ConstantItem
         self.name += '_3delight_CLOUD'
         self.parms['exe'] = '$DELIGHT/bin/renderdl'
-        self.parms['req_license'] = 'delight_lic=1'
+        # We don't need to consume license for cloud:
+        #self.parms['req_license'] = 'delight_lic=1'
         self.parms['req_memory'] = kwargs.get('mantra_ram')
         self.parms['command_arg'] += ["-stats", "-progress", "-cloud"]
 
