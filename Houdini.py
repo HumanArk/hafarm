@@ -1045,6 +1045,64 @@ class DelightRender(HoudiniNodeWrapper):
         pass
 
 
+
+class DelightCloud(HoudiniNodeWrapper):
+    def __init__(self, index, path, depends, **kwargs):
+        super(DelightCloud, self).__init__(index, path, depends, **kwargs)
+        from hafarm.const import ConstantItem
+        self.name += '_3delight_CLOUD'
+        self.parms['exe'] = '$DELIGHT/bin/renderdl'
+        self.parms['req_license'] = 'delight_lic=1'
+        self.parms['req_memory'] = kwargs.get('mantra_ram')
+        self.parms['command_arg'] += ["-stats", "-progress", "-cloud"]
+
+        self.parms['start_frame'] = int(self.hou_node.parm('f1').eval())
+        self.parms['end_frame'] = int(self.hou_node.parm('f2').eval())
+
+        self.parms['scene_file'] << { 'scene_file_path': kwargs['ifd_path']
+                                        , 'scene_file_basename': self.parms['job_name'].data()['job_basename']
+                                        , 'scene_file_ext': '.nsi' }
+        self.parms['job_name'] << { 'render_driver_type': kwargs.get('render_driver_type', '3delight')
+                                    ,'jobname_hash': kwargs['job_hash'] }
+        self.parms['scene_file'] << { 'scene_file_hash': kwargs['job_hash'] + '_' + self.parms['job_name'].data()['render_driver_name'] }
+
+        self.parms['output_picture'] = self.get_output_picture()
+
+        if 'job_hash' in kwargs:
+            self.parms['job_name'] << { 'jobname_hash': kwargs['job_hash'] }
+            self.parms['scene_file'] << { 'scene_file_hash': kwargs['job_hash'] + '_' + self.parms['job_name'].data()['render_driver_name'] }
+
+        # For cloud we want to send all nsi at once
+        nsi_name = str(self.parms['scene_file'])
+        nsi_names = []
+        for frame in range(self.parms['start_frame'], self.parms['end_frame'], self.parms['step_frame']):
+            nsi_names += [nsi_name.replace("@TASK_ID/>", str(frame))]
+
+        self.parms['scene_file'] = ConstantItem('scene_file')
+        self.parms['scene_file'] << {"scene_fullpath": " ".join(nsi_names)}
+
+
+        self.parms['start_frame'] = 1 
+        self.parms['end_frame'] = 1 
+        # Lets spare some cpus...
+        self.parms['group'] = 'old_intel'
+
+
+
+    def get_output_picture(self):
+        """Quick look into USD land
+        """
+        return self.hou_node.parm('default_image_filename').eval()
+
+    def copy_scene_file(self, **kwargs):
+        ''' It is not clear enough in this place :(
+            but mantra should skip copy scene file 
+            because of input file is *.@TASK_ID/>.ifd
+            and copyfile function mess up it
+        '''
+        pass
+
+
 class DelightWrapper(object):
     def __init__(self, index, path, depends, **kwargs):
         self._items = []
@@ -1054,9 +1112,19 @@ class DelightWrapper(object):
         nsi = DelightNSI( index, path, depends, **self._kwargs )
         self.append_instances( nsi )
         group_hash = nsi.parms['job_name'].data()['jobname_hash']
-        render = DelightRender( str(uuid4()), path, [nsi.index], job_hash=group_hash, **self._kwargs )
+        #source_type = hou.node(path).type().name()
+
+        hafarm = kwargs.get('hafarms')[-1]
+        render_site = hafarm.parm("render_site").eval()
+
+        if render_site == "farm":
+            render = DelightRender( str(uuid4()), path, [nsi.index], job_hash=group_hash, **self._kwargs )
+        elif render_site == "cloud":
+            render = DelightCloud( str(uuid4()), path, [nsi.index], job_hash=group_hash, **self._kwargs )
+
         self.append_instances( render )
 
+        
         # Add other stuff here.
 
 
@@ -1065,6 +1133,7 @@ class DelightWrapper(object):
 
 
     def graph_items(self, class_type_filter = None):
+
         if class_type_filter == None:
             return self._items
         return filter(lambda x: isinstance(x, class_type_filter), self._items)
@@ -1090,9 +1159,11 @@ class HoudiniWrapper(type):
                         , 'merge': MergeWrapper
                         , 'usdrender' : UsdWrapper
                         , '3Delight'  : DelightWrapper
+                        #, '3DelightCloud': DelightWrapper
                     }
 
         kwargs = join_hafarms(*hafarms)
+        kwargs['hafarms'] = hafarms
         return hou_drivers[hou_node_type](index, path, houdini_dependencies, **kwargs)
 
 
