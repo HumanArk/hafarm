@@ -1085,8 +1085,12 @@ class DelightCloud(HoudiniNodeWrapper):
 
         self.parms['start_frame'] = 1 
         self.parms['end_frame'] = 1 
+        self.parms['pre_render_script'] = """/STUDIO/houdini/houdini18.0/delight/delightconfig > /tmp/3delight.config && export DELIGHT_CONF=$DELIGHT_CONF:/tmp"""
+        # We need bellow because this is a single task array job, 
+        # and it will start as soon as first parent task will finish, which is too early:
+        self.parms['job_wait_dependency_entire'] = True
         # Lets spare some cpus...
-        self.parms['group'] = 'old_intel'
+        # self.parms['group'] = 'old_intel'
 
 
 
