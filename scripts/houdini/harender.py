@@ -146,7 +146,7 @@ def set_generate_nsi(driver, options):
     else:
         nsi_name = os.path.join(options.ifd_path, scene_name + ".$F" + ".nsi")
         
-    driver.parm("render_mode").set("export_file")
+    driver.parm("output_nsi_files").set(1)
     driver.parm("default_export_nsi_filename").set(nsi_name)
 
     return driver
