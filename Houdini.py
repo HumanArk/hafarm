@@ -988,7 +988,7 @@ class DelightCloud(HoudiniNodeWrapper):
         # We don't need to consume license for cloud:
         #self.parms['req_license'] = 'delight_lic=1'
         self.parms['req_memory'] = kwargs.get('mantra_ram')
-        self.parms['command_arg'] += ["-stats", "-progress", "-cloud"]
+        self.parms['command_arg'] += ["-stats", "-cloud"]
 
         self.parms['start_frame'] = int(self.hou_node.parm('f1').eval())
         self.parms['end_frame'] = int(self.hou_node.parm('f2').eval())
@@ -1009,7 +1009,7 @@ class DelightCloud(HoudiniNodeWrapper):
         # For cloud we want to send all nsi at once
         nsi_name = str(self.parms['scene_file'])
         nsi_names = []
-        for frame in range(self.parms['start_frame'], self.parms['end_frame'], self.parms['step_frame']):
+        for frame in range(self.parms['start_frame'], self.parms['end_frame'] + 1, self.parms['step_frame']):
             nsi_names += [nsi_name.replace("@TASK_ID/>", str(frame))]
 
         self.parms['scene_file'] = ConstantItem('scene_file')
