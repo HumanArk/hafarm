@@ -370,7 +370,4 @@ def main():
         for frame in utils.expand_sequence_into_digits(options.frame_list):
             driver.render(frame_range=(frame, frame), ignore_inputs=True, verbose=True)
 
-
-    hou.hipFile.save()
-
 if __name__ == '__main__': main()
