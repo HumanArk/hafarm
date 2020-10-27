@@ -146,7 +146,11 @@ class NukeFarmGUI(nukescripts.PythonPanel):
         self.addKnob(self.queueKnob)
         self.group_list = nuke.Enumeration_Knob('group', 'Host Group:', self._ctx._group_list() )
         self.group_list.setTooltip('Host group to submit job to.')
-        self.group_list.setValue('allhosts')
+        # FUx for super old cpus 
+        if nuke.NUKE_VERSION_MAJOR > 11:
+            self.group_list.setValue('new_intel')
+        else:
+            self.group_list.setValue('allhosts')
         self.addKnob(self.group_list)
         self.maxTasks_Knob = nuke.WH_Knob('max_tasks', 'Maximum tasks:')
         self.maxTasks_Knob.setTooltip('Maximum number of tasks running on farm at once.')
