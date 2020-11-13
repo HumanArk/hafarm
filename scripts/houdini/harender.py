@@ -6,6 +6,7 @@ from hafarm import utils
 # Global overwrites
 HAFARM_DISABLE_VECTORIZE_EXPORT = "HAFARM_DISABLE_VECTORIZE_EXPORT" in os.environ
 SCRATCH = os.environ.get('HA_SCRATCH','/mnt/lustre/temp')
+HAFARM_IFD_PATH = os.environ.get('HAFARM_IFD_PATH', None)
 
 def help():
     return 'harender: Houdinis hrender csh script replacement.\
@@ -334,6 +335,10 @@ def main():
     # We also disable temporarly checkpoints (FIXME):
     if driver.parm("vm_writecheckpoint"):
         driver.parm("vm_writecheckpoint").set(0)
+
+    # IFD PATH OVERWRITE:
+    if HAFARM_IFD_PATH:
+        options.ifd_path = HAFARM_IFD_PATH
 
     if options.generate_ifds:
         driver = set_generate_ifd(driver, options)
