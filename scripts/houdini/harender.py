@@ -338,6 +338,7 @@ def main():
 
     # IFD PATH OVERWRITE:
     if HAFARM_IFD_PATH:
+        print "WARNING!: Overwrite ifd location with global variable: %s " % HAFARM_IFD_PATH
         options.ifd_path = HAFARM_IFD_PATH
 
     if options.generate_ifds:
