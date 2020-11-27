@@ -5,6 +5,11 @@ import sys
 import itertools
 import time
 import glob
+
+# Python 2&3 compatibility tools
+from future.utils import with_metaclass
+import collections, types
+
 # Host specific:
 import hou
 
@@ -1229,12 +1234,93 @@ class HaContextHoudini(object):
 
         hou.hipFile.save()
 
-        graph = HaGraph(graph_items_args=[])
+        # graph = HaGraph(graph_items_args=[])
+        graph = GraphItem()
 
-        for x in get_hafarm_list_deps(hafarm_node.path()):
-            hou_node_type, index, deps, path, hafarms = x
-            for item in HoudiniWrapper( hou_node_type, index, path, houdini_dependencies[index], hafarms ):
-                if item == None: continue
-                graph.add_node( item  )
-                houdini_nodes[item.index] = item
+        # for node in hafarm_node.inputs():
+        print
+        render_node_walk(hafarm_node, hafarm_node, graph)
+
+            # item = HoudiniWrapper( hou_node_type, index, path, houdini_dependencies[index], hafarms )
+            # if item == None: continue
+            # graph.add_node(item)
+
+        # for x in get_hafarm_list_deps(hafarm_node.path()):
+        #     hou_node_type, index, deps, path, hafarms = x
+        #     for item in HoudiniWrapper( hou_node_type, index, path, houdini_dependencies[index], hafarms ):
+        #         if item == None: continue
+        #         graph.add_node( item  )
+        #         houdini_nodes[item.index] = item
         return graph
+
+
+class GraphItem(object):
+    children = []
+    def __init__(self):
+        pass
+    def add_child(self, child):
+        self.children += [child]
+    def add_children(self, children):
+        if isinstance(children, collections.Iterabable):
+            self.children += list(children)
+        else:
+            pass
+
+class Mantra(object):
+    def __init__(self, hou_node, hafarm_node, hafarm_graph ):
+        print hou_node
+
+
+class IfdGenerate(object):
+    def __init__(self, hou_node, hafarm_node, hafarm_graph ):
+        pass
+
+
+class MantraRender(object):
+    def __init__(self, hou_node, hafarm_node, hafarm_graph ):
+        pass
+
+
+
+allowed_rop_nodes = {   'ifd': Mantra
+                      , 
+                    # , 'baketexture':  HoudiniBaketexture
+                    # , 'baketexture::3.0':  HoudiniBaketexture                        
+                    # , 'alembic': HoudiniAlembicWrapper
+                    # , 'geometry': HoudiniGeometryWrapper
+                    # , 'comp': HoudiniCompositeWrapper
+                    # , 'Redshift_ROP': HoudiniRedshiftROPWrapper
+                    # , 'Redshift_IPR': SkipWrapper
+                    # , 'denoise' : DenoiseBatchRender
+                    # # , 'merge': MergeWrapper
+                    # , 'usdrender' : UsdWrapper
+                    # , '3Delight'  : DelightWrapper
+                    # #, '3DelightCloud': DelightWrapper
+                    }
+
+
+def render_node_process(hou_node, hafarm_node, hafarm_graph):
+    """
+    """
+    hou_node_type = hou_node.type().name()
+    return allowed_rop_nodes[hou_node_type](hou_node, hafarm_node, hafarm_graph)
+
+
+def render_node_walk(parent_node, hafarm_node, hafarm_graph):
+    """ 
+    """
+    for node in parent_node.inputs():
+        # PASS NEW HAFARM UPSTREAM
+        if node.type().name() == "HaFarm":
+            render_node_walk(node, node, hafarm_graph)
+        # DO YOUR JOB HERE
+        elif node.type().name() in allowed_rop_nodes.keys():
+            render_node_walk(node, hafarm_node, hafarm_graph)
+            # DOING IT
+            item = render_node_process(node, hafarm_node, hafarm_graph)
+            graph.add_child(item)
+        else:
+            # THIS IS SOMETHING LIKE MERGE NODE SO IGNORE IT
+            render_node_walk(node, hafarm_node, hafarm_graph)
+
+
