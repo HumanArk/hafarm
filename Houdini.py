@@ -823,7 +823,7 @@ class UsdRender(HbatchWrapper):
         self.name += '_usd'
         _hash = self.get_jobname_hash()
 
-        self.parms['job_name'] << { 'jobname_hash': _hash, 'render_driver_type': 'usd' }
+        self.parms['job_name'] << { 'jobname_hash': _hash, 'render_driver_type': 'usdrender' }
         usd_name = self.parms['job_name'].clone()
         usd_name << { 'render_driver_type': '' }
         self.parms['command_arg'] += ["--generate_usds", "--ifd_name %s" %  usd_name ]
@@ -837,6 +837,24 @@ class UsdRender(HbatchWrapper):
 
     def get_output_picture(self):
         return "" #self.hou_node.parm('vm_picture').eval()
+
+
+
+class UsdGeometryWrapper(HbatchWrapper):                                                                  
+    """docstring for HaMantraWrapper"""                                                                       
+    def __init__(self, index, path, depends, **kwargs):                                                       
+        super(UsdGeometryWrapper, self).__init__(index, path, depends, **kwargs)
+        self.name += '_stage'
+        _hash = self.get_jobname_hash()
+
+        self.parms['job_name'] << { 'jobname_hash': _hash, 'render_driver_type': 'usd' }
+        usd_name = self.parms['job_name'].clone()
+        usd_name << { 'render_driver_type': '' }
+        self.parms['output_picture'] = self.get_output_picture()                                  
+                                                                    
+    def get_output_picture(self):                                                                             
+        return self.hou_node.parm('lopoutput').eval()  
+
 
 
 class KarmaRender(HoudiniNodeWrapper):
@@ -885,7 +903,7 @@ class KarmaRender(HoudiniNodeWrapper):
         pass
 
 
-class UsdWrapper(object):
+class UsdRenderWrapper(object):
     def __init__(self, index, path, depends, **kwargs):
         self._items = []
         self._kwargs = kwargs
@@ -1095,7 +1113,8 @@ class HoudiniWrapper(type):
                         , 'Redshift_IPR': SkipWrapper
                         , 'denoise' : DenoiseBatchRender
                         , 'merge': MergeWrapper
-                        , 'usdrender' : UsdWrapper
+                        , 'usdrender' : UsdRenderWrapper
+                        , 'usd'  : UsdGeometryWrapper
                         , '3Delight'  : DelightWrapper
                         #, '3DelightCloud': DelightWrapper
                     }
